@@ -5,8 +5,23 @@ metadata:
 spec:
   scaleTargetRef:
     name: broker-a
+  pollingInterval: 15
+  cooldownPeriod: 30
   minReplicaCount: 1
   maxReplicaCount: 5
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 2
+              periodSeconds: 15
+          selectPolicy: Max
   triggers:
     - type: redis
       metadata:
@@ -21,8 +36,23 @@ metadata:
 spec:
   scaleTargetRef:
     name: broker-b
+  pollingInterval: 15
+  cooldownPeriod: 30
   minReplicaCount: 1
   maxReplicaCount: 5
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 2
+              periodSeconds: 15
+          selectPolicy: Max
   triggers:
     - type: redis
       metadata:
@@ -37,8 +67,23 @@ metadata:
 spec:
   scaleTargetRef:
     name: broker-c
+  pollingInterval: 15
+  cooldownPeriod: 30
   minReplicaCount: 1
   maxReplicaCount: 5
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 2
+              periodSeconds: 15
+          selectPolicy: Max
   triggers:
     - type: redis
       metadata:

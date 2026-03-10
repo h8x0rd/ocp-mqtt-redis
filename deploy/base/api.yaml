@@ -129,7 +129,10 @@ data:
     }
     
     async function purgeQueue(name) {
-      await redisCommand(['DEL', `queue:${name}`]);
+      const key = `queue:${name}`;
+      const removed = Number(await redisCommand(['DEL', key]));
+      const remaining = Number(await redisCommand(['LLEN', key]));
+      return { removed, remaining };
     }
     
     async function pushQueueMessage(name, payload) {
@@ -235,8 +238,8 @@ data:
           if (!BROKERS.includes(broker)) {
             return json(res, 400, { error: 'Unknown broker' });
           }
-          await purgeQueue(broker);
-          return json(res, 200, { ok: true, broker });
+          const purge = await purgeQueue(broker);
+          return json(res, 200, { ok: true, broker, purge });
         }
     
         return json(res, 404, { error: 'Not found' });

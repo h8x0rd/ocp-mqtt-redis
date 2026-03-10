@@ -153,3 +153,29 @@ The UI now supports three modes:
 - `round robin`
 
 Use `all brokers` when you want each broker to receive the selected message count.
+
+
+## KEDA Redis address
+
+The `ScaledObject` resources use namespace-qualified Redis service addresses:
+
+- `redis.mqtt-demo-dev.svc.cluster.local:6379`
+- `redis.mqtt-demo-test.svc.cluster.local:6379`
+- `redis.mqtt-demo-prod.svc.cluster.local:6379`
+
+This avoids DNS resolution failures from the KEDA operator when using a short hostname like `redis:6379`.
+
+
+## KEDA Redis connectivity
+
+This demo includes a `NetworkPolicy` named `allow-keda-to-redis` so KEDA in the `openshift-keda` namespace can reach the Redis service on TCP 6379. Without it, the `ScaledObject` readiness can fail with a Redis connection timeout.
+
+
+## Faster scale-down after purge
+
+This package includes two scale-down improvements:
+
+1. The API purge endpoint deletes the Redis list for the selected broker, which is the metric KEDA is actually watching.
+2. The `ScaledObject` definitions use a shorter polling interval and more aggressive HPA scale-down behavior.
+
+After purging, allow a short period for KEDA and the generated HPA to observe the lower metric and reduce replicas.
