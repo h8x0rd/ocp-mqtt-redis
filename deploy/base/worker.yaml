@@ -91,8 +91,7 @@ data:
         socket.on('error', (err) => done(err));
         socket.on('data', (chunk) => {
           data += chunk.toString('utf8');
-          if (!data.endsWith('
-')) return;
+          if (!data.endsWith('')) return;
           try {
             done(null, parseRedisSimple(data));
           } catch (err) {
@@ -101,8 +100,7 @@ data:
         });
         socket.on('connect', () => {
           const payload = `*${args.length}
-` + args.map((arg) => `$${Buffer.byteLength(String(arg))}
-${arg}
+` + args.map((arg) => `$${Buffer.byteLength(String(arg))}1${arg}
 `).join('');
           socket.write(payload);
         });
