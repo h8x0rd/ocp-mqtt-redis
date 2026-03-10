@@ -191,3 +191,8 @@ After purging, allow a short period for KEDA and the generated HPA to observe th
 Worker scaling notes:
 - workers intentionally process messages with a short delay so scale-out is visible in the UI
 - KEDA/HPA scale-down is deliberately slower to reduce pod churn during demos
+
+
+## Visual scaling behavior
+
+This package now uses KEDA `ScaledJob` workers. You should expect to see worker Job pods appear when queue depth crosses the activation threshold, remain running while they process a small batch, and then complete once the queue drops. The UI active worker count is based on short-lived Redis heartbeats from running worker jobs.

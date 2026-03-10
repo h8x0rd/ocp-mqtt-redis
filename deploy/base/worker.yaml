@@ -16,10 +16,10 @@ data:
     const MQTT_PORT = Number(process.env.MQTT_PORT || 1883);
     const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
     const WORKER_ID = process.env.WORKER_ID || os.hostname();
-    const POLL_MS = Number(process.env.POLL_MS || 1000);
-    const PROCESS_DELAY_MS = Number(process.env.PROCESS_DELAY_MS || 3000);
-    const STARTUP_DELAY_MS = Number(process.env.STARTUP_DELAY_MS || 5000);
-    const HEARTBEAT_SECONDS = Number(process.env.HEARTBEAT_SECONDS || 15);
+    const PROCESS_DELAY_MS = Number(process.env.PROCESS_DELAY_MS || 5000);
+    const STARTUP_DELAY_MS = Number(process.env.STARTUP_DELAY_MS || 2000);
+    const HEARTBEAT_SECONDS = Number(process.env.HEARTBEAT_SECONDS || 30);
+    const JOB_BATCH_SIZE = Number(process.env.JOB_BATCH_SIZE || 5);
     const QUEUE_KEY = `queue:${BROKER_NAME}`;
     const HEARTBEAT_KEY = `worker:${BROKER_NAME}:${WORKER_ID}`;
 
@@ -65,7 +65,8 @@ data:
       if (prefix === '+') return data.slice(1).trim();
       if (prefix === '-') throw new Error(data.slice(1).trim());
       if (prefix === '$') {
-        const parts = data.split('\r\n');
+        const parts = data.split('
+');
         const length = Number(parts[0].slice(1));
         if (length === -1) return null;
         return parts[1] || '';
@@ -87,11 +88,12 @@ data:
           if (err) reject(err); else resolve(value);
         };
 
-        socket.setTimeout(4000, () => done(new Error('Redis command timed out')));
+        socket.setTimeout(5000, () => done(new Error('Redis command timed out')));
         socket.on('error', (err) => done(err));
         socket.on('data', (chunk) => {
           data += chunk.toString('utf8');
-          if (!data.endsWith('\r\n')) return;
+          if (!data.endsWith('
+')) return;
           try {
             done(null, parseRedisSimple(data));
           } catch (err) {
@@ -99,7 +101,10 @@ data:
           }
         });
         socket.on('connect', () => {
-          const payload = `*${args.length}\r\n` + args.map((arg) => `$${Buffer.byteLength(String(arg))}\r\n${arg}\r\n`).join('');
+          const payload = `*${args.length}
+` + args.map((arg) => `$${Buffer.byteLength(String(arg))}
+${arg}
+`).join('');
           socket.write(payload);
         });
       });
@@ -120,7 +125,7 @@ data:
           if (err) reject(err); else resolve();
         };
 
-        socket.setTimeout(4000, () => done(new Error(`Timeout publishing to ${MQTT_HOST}`)));
+        socket.setTimeout(5000, () => done(new Error(`Timeout publishing to ${MQTT_HOST}`)));
         socket.on('error', done);
         socket.on('connect', () => {
           socket.write(buildConnectPacket(clientId));
@@ -137,9 +142,9 @@ data:
               payload: message,
               processedAt: new Date().toISOString(),
             });
-            socket.write(buildPublishPacket(topic, publishPayload), (err) => {
+            socket.write(buildPublishPacket(`demo/${BROKER_NAME}`, publishPayload), (err) => {
               if (err) return done(err);
-              setTimeout(() => done(), 25);
+              setTimeout(() => done(), 50);
             });
           }
         });
@@ -161,161 +166,27 @@ data:
       return true;
     }
 
-    async function loop() {
+    async function main() {
+      let timer = null;
+      const beat = () => heartbeat().catch((err) => console.error('Heartbeat failed:', err.message || err));
       try {
+        await new Promise((resolve) => setTimeout(resolve, STARTUP_DELAY_MS));
         await heartbeat();
-        const processed = await processOne();
-        setTimeout(loop, processed ? 100 : POLL_MS);
+        timer = setInterval(beat, 5000);
+        let processedCount = 0;
+        while (processedCount < JOB_BATCH_SIZE) {
+          const processed = await processOne();
+          if (!processed) break;
+          processedCount += 1;
+        }
+        console.log(`Worker ${WORKER_ID} processed ${processedCount} messages for ${BROKER_NAME}`);
       } catch (error) {
         console.error(`Worker ${WORKER_ID} failed for ${BROKER_NAME}:`, error.message || error);
-        setTimeout(loop, 2000);
+        process.exitCode = 1;
+      } finally {
+        if (timer) clearInterval(timer);
+        try { await redisCommand(['DEL', HEARTBEAT_KEY]); } catch (_) {}
       }
     }
 
-    heartbeat().catch((err) => console.error('Initial heartbeat failed:', err.message || err));
-    setInterval(() => heartbeat().catch((err) => console.error('Heartbeat failed:', err.message || err)), 5000);
-    setTimeout(loop, STARTUP_DELAY_MS);
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: worker-a
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: worker-a
-  template:
-    metadata:
-      labels:
-        app: worker-a
-        demo.component: queue-worker
-        demo.broker: broker-a
-    spec:
-      containers:
-        - name: worker
-          image: docker.io/node:20-alpine
-          command: ['node', '/opt/demo/worker.js']
-          env:
-            - name: BROKER_NAME
-              value: broker-a
-            - name: MQTT_HOST
-              value: broker-a
-            - name: MQTT_PORT
-              value: '1883'
-            - name: REDIS_URL
-              value: redis://redis:6379
-            - name: PROCESS_DELAY_MS
-              value: '3000'
-            - name: STARTUP_DELAY_MS
-              value: '5000'
-          volumeMounts:
-            - name: worker-script
-              mountPath: /opt/demo
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
-      volumes:
-        - name: worker-script
-          configMap:
-            name: worker-script
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: worker-b
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: worker-b
-  template:
-    metadata:
-      labels:
-        app: worker-b
-        demo.component: queue-worker
-        demo.broker: broker-b
-    spec:
-      containers:
-        - name: worker
-          image: docker.io/node:20-alpine
-          command: ['node', '/opt/demo/worker.js']
-          env:
-            - name: BROKER_NAME
-              value: broker-b
-            - name: MQTT_HOST
-              value: broker-b
-            - name: MQTT_PORT
-              value: '1883'
-            - name: REDIS_URL
-              value: redis://redis:6379
-            - name: PROCESS_DELAY_MS
-              value: '3000'
-            - name: STARTUP_DELAY_MS
-              value: '5000'
-          volumeMounts:
-            - name: worker-script
-              mountPath: /opt/demo
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
-      volumes:
-        - name: worker-script
-          configMap:
-            name: worker-script
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: worker-c
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: worker-c
-  template:
-    metadata:
-      labels:
-        app: worker-c
-        demo.component: queue-worker
-        demo.broker: broker-c
-    spec:
-      containers:
-        - name: worker
-          image: docker.io/node:20-alpine
-          command: ['node', '/opt/demo/worker.js']
-          env:
-            - name: BROKER_NAME
-              value: broker-c
-            - name: MQTT_HOST
-              value: broker-c
-            - name: MQTT_PORT
-              value: '1883'
-            - name: REDIS_URL
-              value: redis://redis:6379
-            - name: PROCESS_DELAY_MS
-              value: '3000'
-            - name: STARTUP_DELAY_MS
-              value: '5000'
-          volumeMounts:
-            - name: worker-script
-              mountPath: /opt/demo
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
-      volumes:
-        - name: worker-script
-          configMap:
-            name: worker-script
+    main();
