@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     path: deploy/overlays/dev
-    repoURL: https://github.com/h8x0rd/ocp-mqtt-redis.git
+    repoURL: https://github.com/your-org/ocp-mqtt-demo.git
     targetRevision: main
   syncPolicy:
     automated:

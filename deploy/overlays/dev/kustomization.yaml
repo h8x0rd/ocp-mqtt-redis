@@ -22,9 +22,6 @@ patches:
       name: worker-a-jobs
     patch: |-
       - op: replace
-        path: /spec/jobTargetRef/template/spec/containers/0/env/3/value
-        value: redis://redis.mqtt-demo-dev.svc.cluster.local:6379
-      - op: replace
         path: /spec/triggers/0/metadata/address
         value: redis.mqtt-demo-dev.svc.cluster.local:6379
       - op: replace
@@ -37,9 +34,6 @@ patches:
       name: worker-b-jobs
     patch: |-
       - op: replace
-        path: /spec/jobTargetRef/template/spec/containers/0/env/3/value
-        value: redis://redis.mqtt-demo-dev.svc.cluster.local:6379
-      - op: replace
         path: /spec/triggers/0/metadata/address
         value: redis.mqtt-demo-dev.svc.cluster.local:6379
       - op: replace
@@ -51,9 +45,6 @@ patches:
       kind: ScaledJob
       name: worker-c-jobs
     patch: |-
-      - op: replace
-        path: /spec/jobTargetRef/template/spec/containers/0/env/3/value
-        value: redis://redis.mqtt-demo-dev.svc.cluster.local:6379
       - op: replace
         path: /spec/triggers/0/metadata/address
         value: redis.mqtt-demo-dev.svc.cluster.local:6379

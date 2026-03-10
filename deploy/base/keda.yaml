@@ -62,7 +62,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: redis:6379
+        address: redis.default.svc.cluster.local:6379
         listName: queue:broker-a
         listLength: '5'
         activationListLength: '20'
@@ -131,7 +131,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: redis:6379
+        address: redis.default.svc.cluster.local:6379
         listName: queue:broker-b
         listLength: '5'
         activationListLength: '20'
@@ -200,7 +200,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: redis:6379
+        address: redis.default.svc.cluster.local:6379
         listName: queue:broker-c
         listLength: '5'
         activationListLength: '20'

@@ -204,3 +204,7 @@ This build also sets the API and worker jobs to use namespace-qualified Redis DN
 ## Notes for this rebuild
 
 This rebuild fixes the worker ScaledJob overlays so environment-specific Redis values are patched without replacing the full worker container spec.
+
+## March 2026 fix for ScaledJobs
+
+The worker `ScaledJob` definitions were corrected so they no longer patch a Redis URL into the `POD_NAMESPACE` environment variable. The base `keda.yaml` now lets the worker script derive Redis from the pod namespace, and the overlays only patch the scaler trigger address and activation threshold.
