@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: REDIS_URL
+              value: redis://redis.mqtt-demo-prod.svc.cluster.local:6379
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: worker-a-jobs
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+          - name: worker
+            env:
+              - name: REDIS_URL
+                value: redis://redis.mqtt-demo-prod.svc.cluster.local:6379
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: worker-b-jobs
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+          - name: worker
+            env:
+              - name: REDIS_URL
+                value: redis://redis.mqtt-demo-prod.svc.cluster.local:6379
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: worker-c-jobs
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+          - name: worker
+            env:
+              - name: REDIS_URL
+                value: redis://redis.mqtt-demo-prod.svc.cluster.local:6379

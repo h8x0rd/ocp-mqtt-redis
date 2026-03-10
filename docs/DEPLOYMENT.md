@@ -196,3 +196,6 @@ Worker scaling notes:
 ## Visual scaling behavior
 
 This package now uses KEDA `ScaledJob` workers. You should expect to see worker Job pods appear when queue depth crosses the activation threshold, remain running while they process a small batch, and then complete once the queue drops. The UI active worker count is based on short-lived Redis heartbeats from running worker jobs.
+
+
+This build also sets the API and worker jobs to use namespace-qualified Redis DNS names by default.

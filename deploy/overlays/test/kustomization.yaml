@@ -8,3 +8,4 @@ commonAnnotations:
 
 patchesStrategicMerge:
   - keda-address-patch.yaml
+  - redis-url-patch.yaml

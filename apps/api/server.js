@@ -3,7 +3,8 @@ const net = require('net');
 const { URL } = require('url');
 
 const PORT = Number(process.env.PORT || 8080);
-const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
+const POD_NAMESPACE = process.env.POD_NAMESPACE || 'default';
+const REDIS_URL = process.env.REDIS_URL || `redis://redis.${POD_NAMESPACE}.svc.cluster.local:6379`;
 const BROKERS = (process.env.BROKERS || 'broker-a,broker-b,broker-c')
   .split(',')
   .map((s) => s.trim())
@@ -51,7 +52,7 @@ function redisCommand(args) {
       if (err) reject(err); else resolve(value);
     };
 
-    socket.setTimeout(3000, () => done(new Error('Redis command timed out')));
+    socket.setTimeout(10000, () => done(new Error('Redis command timed out')));
     socket.on('error', (err) => done(err));
     socket.on('data', (chunk) => {
       data += chunk.toString('utf8');

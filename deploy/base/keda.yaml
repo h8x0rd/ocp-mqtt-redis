@@ -33,8 +33,12 @@ spec:
                 value: broker-a
               - name: MQTT_PORT
                 value: '1883'
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
               - name: REDIS_URL
-                value: redis://redis:6379
+                value: redis://redis.default.svc.cluster.local:6379
               - name: PROCESS_DELAY_MS
                 value: '8000'
               - name: STARTUP_DELAY_MS
@@ -100,8 +104,12 @@ spec:
                 value: broker-b
               - name: MQTT_PORT
                 value: '1883'
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
               - name: REDIS_URL
-                value: redis://redis:6379
+                value: redis://redis.default.svc.cluster.local:6379
               - name: PROCESS_DELAY_MS
                 value: '8000'
               - name: STARTUP_DELAY_MS
@@ -167,8 +175,12 @@ spec:
                 value: broker-c
               - name: MQTT_PORT
                 value: '1883'
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
               - name: REDIS_URL
-                value: redis://redis:6379
+                value: redis://redis.default.svc.cluster.local:6379
               - name: PROCESS_DELAY_MS
                 value: '8000'
               - name: STARTUP_DELAY_MS

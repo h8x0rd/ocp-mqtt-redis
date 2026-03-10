@@ -14,7 +14,8 @@ data:
     const BROKER_NAME = process.env.BROKER_NAME || 'broker-a';
     const MQTT_HOST = process.env.MQTT_HOST || BROKER_NAME;
     const MQTT_PORT = Number(process.env.MQTT_PORT || 1883);
-    const REDIS_URL = process.env.REDIS_URL || 'redis://redis.mqtt-demo-dev.svc.cluster.local:6379';
+    const POD_NAMESPACE = process.env.POD_NAMESPACE || 'default';
+const REDIS_URL = process.env.REDIS_URL || `redis://redis.${POD_NAMESPACE}.svc.cluster.local:6379`;
     const WORKER_ID = process.env.WORKER_ID || os.hostname();
     const PROCESS_DELAY_MS = Number(process.env.PROCESS_DELAY_MS || 5000);
     const STARTUP_DELAY_MS = Number(process.env.STARTUP_DELAY_MS || 2000);
@@ -65,7 +66,7 @@ data:
       if (prefix === '+') return data.slice(1).trim();
       if (prefix === '-') throw new Error(data.slice(1).trim());
       if (prefix === '$') {
-        const parts = data.split('');
+        const parts = data.split('\r\n');
         const length = Number(parts[0].slice(1));
         if (length === -1) return null;
         return parts[1] || '';
@@ -91,7 +92,7 @@ data:
         socket.on('error', (err) => done(err));
         socket.on('data', (chunk) => {
           data += chunk.toString('utf8');
-          if (!data.endsWith('')) return;
+          if (!data.endsWith('\r\n')) return;
           try {
             done(null, parseRedisSimple(data));
           } catch (err) {
@@ -99,7 +100,7 @@ data:
           }
         });
         socket.on('connect', () => {
-          const payload = `*${args.length}` + args.map((arg) => `$${Buffer.byteLength(String(arg))}1${arg}`).join('');
+          const payload = `*${args.length}\r\n` + args.map((arg) => `$${Buffer.byteLength(String(arg))}\r\n${arg}\r\n`).join('');
           socket.write(payload);
         });
       });
