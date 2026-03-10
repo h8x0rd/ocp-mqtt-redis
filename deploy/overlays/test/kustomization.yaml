@@ -5,3 +5,6 @@ resources:
   - ../../base
 commonAnnotations:
   demo.environment: test
+
+patchesStrategicMerge:
+  - keda-address-patch.yaml

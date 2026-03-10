@@ -1,0 +1,35 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: broker-a-queue-scaler
+spec:
+  triggers:
+    - type: redis
+      metadata:
+        address: redis.mqtt-demo-prod.svc.cluster.local:6379
+        listName: queue:broker-a
+        listLength: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: broker-b-queue-scaler
+spec:
+  triggers:
+    - type: redis
+      metadata:
+        address: redis.mqtt-demo-prod.svc.cluster.local:6379
+        listName: queue:broker-b
+        listLength: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: broker-c-queue-scaler
+spec:
+  triggers:
+    - type: redis
+      metadata:
+        address: redis.mqtt-demo-prod.svc.cluster.local:6379
+        listName: queue:broker-c
+        listLength: "10"
