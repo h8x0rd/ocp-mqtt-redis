@@ -9,5 +9,6 @@ resources:
   - networkpolicies.yaml
   - limitrange.yaml
   - keda.yaml
-commonLabels:
-  app.kubernetes.io/part-of: ocp-mqtt-demo
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: ocp-mqtt-demo

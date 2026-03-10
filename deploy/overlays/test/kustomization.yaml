@@ -5,7 +5,58 @@ resources:
   - ../../base
 commonAnnotations:
   demo.environment: test
-
-patchesStrategicMerge:
-  - keda-address-patch.yaml
-  - redis-url-patch.yaml
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: redis://redis.mqtt-demo-test.svc.cluster.local:6379
+  - target:
+      group: keda.sh
+      version: v1alpha1
+      kind: ScaledJob
+      name: worker-a-jobs
+    patch: |-
+      - op: replace
+        path: /spec/jobTargetRef/template/spec/containers/0/env/3/value
+        value: redis://redis.mqtt-demo-test.svc.cluster.local:6379
+      - op: replace
+        path: /spec/triggers/0/metadata/address
+        value: redis.mqtt-demo-test.svc.cluster.local:6379
+      - op: replace
+        path: /spec/triggers/0/metadata/activationListLength
+        value: "10"
+  - target:
+      group: keda.sh
+      version: v1alpha1
+      kind: ScaledJob
+      name: worker-b-jobs
+    patch: |-
+      - op: replace
+        path: /spec/jobTargetRef/template/spec/containers/0/env/3/value
+        value: redis://redis.mqtt-demo-test.svc.cluster.local:6379
+      - op: replace
+        path: /spec/triggers/0/metadata/address
+        value: redis.mqtt-demo-test.svc.cluster.local:6379
+      - op: replace
+        path: /spec/triggers/0/metadata/activationListLength
+        value: "10"
+  - target:
+      group: keda.sh
+      version: v1alpha1
+      kind: ScaledJob
+      name: worker-c-jobs
+    patch: |-
+      - op: replace
+        path: /spec/jobTargetRef/template/spec/containers/0/env/3/value
+        value: redis://redis.mqtt-demo-test.svc.cluster.local:6379
+      - op: replace
+        path: /spec/triggers/0/metadata/address
+        value: redis.mqtt-demo-test.svc.cluster.local:6379
+      - op: replace
+        path: /spec/triggers/0/metadata/activationListLength
+        value: "10"

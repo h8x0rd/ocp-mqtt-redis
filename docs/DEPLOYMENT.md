@@ -199,3 +199,8 @@ This package now uses KEDA `ScaledJob` workers. You should expect to see worker 
 
 
 This build also sets the API and worker jobs to use namespace-qualified Redis DNS names by default.
+
+
+## Notes for this rebuild
+
+This rebuild fixes the worker ScaledJob overlays so environment-specific Redis values are patched without replacing the full worker container spec.
