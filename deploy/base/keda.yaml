@@ -8,7 +8,7 @@ spec:
   pollingInterval: 10
   cooldownPeriod: 30
   minReplicaCount: 1
-  maxReplicaCount: 6
+  maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
@@ -27,7 +27,7 @@ spec:
       metadata:
         address: redis:6379
         listName: queue:broker-a
-        listLength: "10"
+        listLength: "100"
         activationListLength: "1"
 ---
 apiVersion: keda.sh/v1alpha1
@@ -40,7 +40,7 @@ spec:
   pollingInterval: 10
   cooldownPeriod: 30
   minReplicaCount: 1
-  maxReplicaCount: 6
+  maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
@@ -59,7 +59,7 @@ spec:
       metadata:
         address: redis:6379
         listName: queue:broker-b
-        listLength: "10"
+        listLength: "100"
         activationListLength: "1"
 ---
 apiVersion: keda.sh/v1alpha1
@@ -72,7 +72,7 @@ spec:
   pollingInterval: 10
   cooldownPeriod: 30
   minReplicaCount: 1
-  maxReplicaCount: 6
+  maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
@@ -91,5 +91,5 @@ spec:
       metadata:
         address: redis:6379
         listName: queue:broker-c
-        listLength: "10"
+        listLength: "100"
         activationListLength: "1"
