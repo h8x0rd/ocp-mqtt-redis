@@ -37,8 +37,6 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: metadata.namespace
-              - name: REDIS_URL
-                value: redis://redis.default.svc.cluster.local:6379
               - name: PROCESS_DELAY_MS
                 value: '8000'
               - name: STARTUP_DELAY_MS
@@ -108,8 +106,6 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: metadata.namespace
-              - name: REDIS_URL
-                value: redis://redis.default.svc.cluster.local:6379
               - name: PROCESS_DELAY_MS
                 value: '8000'
               - name: STARTUP_DELAY_MS
@@ -179,8 +175,6 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: metadata.namespace
-              - name: REDIS_URL
-                value: redis://redis.default.svc.cluster.local:6379
               - name: PROCESS_DELAY_MS
                 value: '8000'
               - name: STARTUP_DELAY_MS
