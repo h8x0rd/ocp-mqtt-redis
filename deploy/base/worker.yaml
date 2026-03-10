@@ -65,8 +65,7 @@ data:
       if (prefix === '+') return data.slice(1).trim();
       if (prefix === '-') throw new Error(data.slice(1).trim());
       if (prefix === '$') {
-        const parts = data.split('
-');
+        const parts = data.split('');
         const length = Number(parts[0].slice(1));
         if (length === -1) return null;
         return parts[1] || '';
