@@ -14,7 +14,7 @@ data:
     const BROKER_NAME = process.env.BROKER_NAME || 'broker-a';
     const MQTT_HOST = process.env.MQTT_HOST || BROKER_NAME;
     const MQTT_PORT = Number(process.env.MQTT_PORT || 1883);
-    const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
+    const REDIS_URL = process.env.REDIS_URL || 'redis://redis.mqtt-demo-dev.svc.cluster.local:6379';
     const WORKER_ID = process.env.WORKER_ID || os.hostname();
     const PROCESS_DELAY_MS = Number(process.env.PROCESS_DELAY_MS || 5000);
     const STARTUP_DELAY_MS = Number(process.env.STARTUP_DELAY_MS || 2000);
