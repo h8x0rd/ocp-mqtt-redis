@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mqtt-demo-dev
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: mqtt-demo-dev
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: deploy/overlays/dev
+    repoURL: https://github.com/your-org/ocp-mqtt-demo.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

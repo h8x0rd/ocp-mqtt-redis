@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+data:
+  mosquitto.conf: |
+    listener 1883
+    allow_anonymous true
+    persistence false
+    log_dest stdout
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker-a
+spec:
+  selector: { app: broker-a }
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: 1883
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker-a
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: broker-a } }
+  template:
+    metadata: { labels: { app: broker-a } }
+    spec:
+      containers:
+        - name: broker
+          image: docker.io/eclipse-mosquitto:2
+          ports:
+            - containerPort: 1883
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          livenessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker-b
+spec:
+  selector: { app: broker-b }
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: 1883
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker-b
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: broker-b } }
+  template:
+    metadata: { labels: { app: broker-b } }
+    spec:
+      containers:
+        - name: broker
+          image: docker.io/eclipse-mosquitto:2
+          ports:
+            - containerPort: 1883
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          livenessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker-c
+spec:
+  selector: { app: broker-c }
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: 1883
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker-c
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: broker-c } }
+  template:
+    metadata: { labels: { app: broker-c } }
+    spec:
+      containers:
+        - name: broker
+          image: docker.io/eclipse-mosquitto:2
+          ports:
+            - containerPort: 1883
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          livenessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 10
+          readinessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config

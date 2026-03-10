@@ -1,0 +1,272 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-assets
+  labels:
+    app: frontend
+data:
+  index.html: |
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>OpenShift MQTT Demo</title>
+      <style>
+        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(135deg,#1b1f3b,#2d6cdf,#31c48d);color:#fff;margin:0;min-height:100vh}
+        .wrap{max-width:1100px;margin:0 auto;padding:24px}
+        .hero{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+        .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:24px}
+        .card,.panel{background:rgba(255,255,255,.14);backdrop-filter:blur(6px);border-radius:20px;padding:18px;box-shadow:0 12px 28px rgba(0,0,0,.18)}
+        .count{font-size:3rem;font-weight:800;margin:8px 0}
+        button,input,select{border:none;border-radius:12px;padding:10px 12px;font-size:1rem}
+        button{cursor:pointer;background:#fff;color:#1547b8;font-weight:700}
+        button.danger{background:#ffdad6;color:#8b1e1e}
+        .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px}
+        .status{margin-top:16px;min-height:1.5em;font-weight:600;white-space:pre-wrap}
+        .footer{opacity:.85;margin-top:18px}
+        code{background:rgba(255,255,255,.12);padding:2px 6px;border-radius:8px}
+      </style>
+    </head>
+    <body>
+    <div class="wrap">
+      <div class="hero">
+        <div>
+          <h1>Interactive OpenShift MQTT Demo</h1>
+          <p>Send bursts of messages, watch queue counts update, and purge any broker queue.</p>
+        </div>
+        <div class="panel">
+          <strong>Live demo features</strong><br>
+          MQTT publish, Redis-backed counts, KEDA autoscaling, Routes, probes, and NetworkPolicy.
+        </div>
+      </div>
+    
+      <div id="cards" class="card-grid"></div>
+    
+      <div class="panel">
+        <h2>Send messages</h2>
+        <div class="controls">
+          <select id="mode">
+            <option value="single">single broker</option>
+            <option value="all">all brokers</option>
+            <option value="round-robin">round robin</option>
+          </select>
+          <select id="broker">
+            <option value="broker-a">broker-a</option>
+            <option value="broker-b">broker-b</option>
+            <option value="broker-c">broker-c</option>
+          </select>
+          <input id="count" type="number" min="1" max="500" value="10" placeholder="Message count">
+          <input id="message" type="text" value="Hello from OpenShift" placeholder="Message payload">
+          <button onclick="sendMessages()">Send</button>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="footer">Autoscaling threshold: <code>10</code> queued messages per broker. In <code>all brokers</code> mode, each broker receives the selected count.</div>
+      </div>
+    </div>
+    <script>
+    const apiBase = '/api';
+    async function api(path, options={}){
+      const res = await fetch(`${apiBase}${path}`, options);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `Request failed: ${res.status}`);
+      }
+      return data;
+    }
+    async function loadData(){
+      const data = await api('/brokers');
+      document.getElementById('cards').innerHTML = data.brokers.map(b => `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3>${b.name}</h3>
+            <span>${b.service}</span>
+          </div>
+          <div class="count">${b.queueCount}</div>
+          <div>Replicas: ${b.replicas ?? 'n/a'}</div>
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+            <button onclick="quickSend('${b.name}',10)">+10</button>
+            <button onclick="quickSend('${b.name}',25)">+25</button>
+            <button class="danger" onclick="purge('${b.name}')">Purge</button>
+          </div>
+        </div>`).join('');
+    }
+    function selectedMode(){ return document.getElementById('mode').value; }
+    async function sendMessages(){
+      try {
+        const mode = selectedMode();
+        const broker = document.getElementById('broker').value;
+        const count = Number(document.getElementById('count').value || 1);
+        const message = document.getElementById('message').value || 'Hello';
+        const data = await api('/send', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({broker,count,message,mode})});
+        setStatus(renderSendStatus(data));
+        await loadData();
+      } catch (err) {
+        setStatus(`Send failed: ${err.message}`);
+      }
+    }
+    async function quickSend(broker, count){
+      try {
+        const data = await api('/send', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({broker,count,message:`Burst ${count}`,mode:'single'})});
+        setStatus(renderSendStatus(data));
+        await loadData();
+      } catch (err) {
+        setStatus(`Send failed: ${err.message}`);
+      }
+    }
+    async function purge(broker){
+      try {
+        await api(`/brokers/${broker}/messages`, {method:'DELETE'});
+        setStatus(`Purged messages for ${broker}`);
+        await loadData();
+      } catch (err) {
+        setStatus(`Purge failed: ${err.message}`);
+      }
+    }
+    function renderSendStatus(data){
+      const parts = Object.entries(data.sentByBroker || {})
+        .filter(([, v]) => v > 0)
+        .map(([k, v]) => `${k}: ${v}`);
+      return `Sent ${data.totalMessagesSent} message(s) using ${data.mode} mode.
+    ${parts.join(' | ')}`;
+    }
+    function setStatus(msg){ document.getElementById('status').textContent = msg; }
+    loadData().catch(err => setStatus(`Initial load failed: ${err.message}`));
+    setInterval(() => loadData().catch(err => setStatus(`Refresh failed: ${err.message}`)), 3000);
+    </script>
+    </body>
+    </html>
+  nginx.conf: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      access_log /dev/stdout;
+      sendfile on;
+      keepalive_timeout 65;
+
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+
+      server {
+        listen 8080;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+          try_files $uri /index.html;
+        }
+
+        location /api/ {
+          proxy_pass http://api:8080/;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location = /healthz {
+          access_log off;
+          return 200 'ok';
+          add_header Content-Type text/plain;
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: frontend
+spec:
+  to:
+    kind: Service
+    name: frontend
+  port:
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: docker.io/nginx:1.27-alpine
+          command: ["nginx"]
+          args: ["-g", "daemon off;", "-c", "/etc/nginx/nginx.conf"]
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+          volumeMounts:
+            - name: frontend-assets
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+            - name: frontend-assets
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: nginx-tmp
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+      volumes:
+        - name: frontend-assets
+          configMap:
+            name: frontend-assets
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}

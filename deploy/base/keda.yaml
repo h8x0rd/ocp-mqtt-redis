@@ -1,0 +1,47 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: broker-a-queue-scaler
+spec:
+  scaleTargetRef:
+    name: broker-a
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+    - type: redis
+      metadata:
+        address: redis:6379
+        listName: queue:broker-a
+        listLength: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: broker-b-queue-scaler
+spec:
+  scaleTargetRef:
+    name: broker-b
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+    - type: redis
+      metadata:
+        address: redis:6379
+        listName: queue:broker-b
+        listLength: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: broker-c-queue-scaler
+spec:
+  scaleTargetRef:
+    name: broker-c
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+    - type: redis
+      metadata:
+        address: redis:6379
+        listName: queue:broker-c
+        listLength: "10"

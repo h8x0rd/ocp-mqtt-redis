@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - redis.yaml
+  - mqtt-brokers.yaml
+  - api.yaml
+  - frontend.yaml
+  - networkpolicies.yaml
+  - limitrange.yaml
+  - keda.yaml
+commonLabels:
+  app.kubernetes.io/part-of: ocp-mqtt-demo
