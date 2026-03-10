@@ -13,71 +13,28 @@ const redisUrl = new URL(REDIS_URL);
 const REDIS_HOST = redisUrl.hostname;
 const REDIS_PORT = Number(redisUrl.port || 6379);
 
-function encodeRemainingLength(length) {
-  const bytes = [];
-  do {
-    let digit = length % 128;
-    length = Math.floor(length / 128);
-    if (length > 0) digit |= 0x80;
-    bytes.push(digit);
-  } while (length > 0);
-  return Buffer.from(bytes);
-}
-
-function mqttString(value) {
-  const buf = Buffer.from(value, 'utf8');
-  const len = Buffer.alloc(2);
-  len.writeUInt16BE(buf.length, 0);
-  return Buffer.concat([len, buf]);
-}
-
-function buildConnectPacket(clientId) {
-  const protocol = Buffer.from([0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x02, 0x00, 0x3c]);
-  const payload = mqttString(clientId);
-  const remaining = encodeRemainingLength(protocol.length + payload.length);
-  return Buffer.concat([Buffer.from([0x10]), remaining, protocol, payload]);
-}
-
-function buildPublishPacket(topic, payload) {
-  const topicBuf = mqttString(topic);
-  const payloadBuf = Buffer.from(payload, 'utf8');
-  const remaining = encodeRemainingLength(topicBuf.length + payloadBuf.length);
-  return Buffer.concat([Buffer.from([0x30]), remaining, topicBuf, payloadBuf]);
-}
-
-function mqttPublish(broker, topic, message) {
-  return new Promise((resolve, reject) => {
-    const socket = net.createConnection({ host: broker, port: 1883 });
-    const clientId = `demo-${broker}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    let settled = false;
-    let connected = false;
-
-    const done = (err) => {
-      if (settled) return;
-      settled = true;
-      try { socket.end(); } catch (_) {}
-      try { socket.destroy(); } catch (_) {}
-      if (err) reject(err); else resolve();
-    };
-
-    socket.setTimeout(4000, () => done(new Error(`Timeout publishing to ${broker}`)));
-    socket.on('error', done);
-    socket.on('connect', () => {
-      socket.write(buildConnectPacket(clientId));
-    });
-    socket.on('data', (chunk) => {
-      if (!connected) {
-        if (chunk.length < 4 || chunk[0] !== 0x20 || chunk[1] !== 0x02 || chunk[3] !== 0x00) {
-          return done(new Error(`MQTT CONNACK failed for ${broker}`));
-        }
-        connected = true;
-        socket.write(buildPublishPacket(topic, message), (err) => {
-          if (err) return done(err);
-          setTimeout(() => done(), 25);
-        });
-      }
-    });
-  });
+function parseRedisSimple(data) {
+  const prefix = data[0];
+  if (prefix === ':') return Number(data.slice(1).trim());
+  if (prefix === '+') return data.slice(1).trim();
+  if (prefix === '-') throw new Error(data.slice(1).trim());
+  if (prefix === '$') {
+    const parts = data.split('\r\n');
+    const length = Number(parts[0].slice(1));
+    if (length === -1) return null;
+    return parts[1] || '';
+  }
+  if (prefix === '*') {
+    const lines = data.split('\r\n').filter((line) => line.length > 0);
+    const count = Number(lines[0].slice(1));
+    const values = [];
+    for (let i = 1; i < lines.length; i += 2) {
+      if (values.length >= count) break;
+      if (lines[i][0] === '$') values.push(lines[i + 1] || '');
+    }
+    return values;
+  }
+  return data.trim();
 }
 
 function redisCommand(args) {
@@ -99,15 +56,11 @@ function redisCommand(args) {
     socket.on('data', (chunk) => {
       data += chunk.toString('utf8');
       if (!data.endsWith('\r\n')) return;
-      const prefix = data[0];
-      if (prefix === ':') return done(null, Number(data.slice(1).trim()));
-      if (prefix === '+') return done(null, data.slice(1).trim());
-      if (prefix === '-') return done(new Error(data.slice(1).trim()));
-      if (prefix === '$') {
-        const parts = data.split('\r\n');
-        return done(null, parts[1] || '');
+      try {
+        done(null, parseRedisSimple(data));
+      } catch (error) {
+        done(error);
       }
-      done(null, data.trim());
     });
     socket.on('connect', () => {
       const payload = `*${args.length}\r\n` + args.map((arg) => `$${Buffer.byteLength(String(arg))}\r\n${arg}\r\n`).join('');
@@ -120,12 +73,25 @@ async function getQueueCount(name) {
   return Number(await redisCommand(['LLEN', `queue:${name}`]));
 }
 
+async function getActiveWorkerCount(name) {
+  const keys = await redisCommand(['KEYS', `worker:${name}:*`]);
+  return Array.isArray(keys) ? keys.length : 0;
+}
+
+async function getProcessedCount(name) {
+  const value = await redisCommand(['GET', `processed:${name}`]);
+  return Number(value || 0);
+}
+
 async function purgeQueue(name) {
-  await redisCommand(['DEL', `queue:${name}`]);
+  const key = `queue:${name}`;
+  const removed = Number(await redisCommand(['DEL', key]));
+  const remaining = Number(await redisCommand(['LLEN', key]));
+  return { removed, remaining };
 }
 
 async function pushQueueMessage(name, payload) {
-  await redisCommand(['RPUSH', `queue:${name}`, payload]);
+  return Number(await redisCommand(['RPUSH', `queue:${name}`, payload]));
 }
 
 function json(res, status, body) {
@@ -182,6 +148,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/readyz') {
+      await redisCommand(['PING']);
       return json(res, 200, { status: 'ready' });
     }
 
@@ -191,7 +158,8 @@ const server = http.createServer(async (req, res) => {
           name,
           service: `${name}:1883`,
           queueCount: await getQueueCount(name),
-          replicas: 'KEDA-managed',
+          activeWorkers: await getActiveWorkerCount(name),
+          processedCount: await getProcessedCount(name),
         }))
       );
       return json(res, 200, { brokers });
@@ -204,21 +172,20 @@ const server = http.createServer(async (req, res) => {
       const message = String(body.message || 'Hello from OpenShift');
       const mode = String(body.mode || 'single');
       const jobs = parseTargets(mode, broker, count);
-      const sentByBroker = Object.fromEntries(BROKERS.map((name) => [name, 0]));
+      const queuedByBroker = Object.fromEntries(BROKERS.map((name) => [name, 0]));
 
       for (const job of jobs) {
         const payload = `${message} #${job.index}`;
-        await mqttPublish(job.broker, `demo/${job.broker}`, payload);
         await pushQueueMessage(job.broker, payload);
-        sentByBroker[job.broker] += 1;
+        queuedByBroker[job.broker] += 1;
       }
 
       return json(res, 200, {
         ok: true,
         mode,
         requestedCount: count,
-        totalMessagesSent: jobs.length,
-        sentByBroker,
+        totalMessagesQueued: jobs.length,
+        queuedByBroker,
       });
     }
 
@@ -227,8 +194,8 @@ const server = http.createServer(async (req, res) => {
       if (!BROKERS.includes(broker)) {
         return json(res, 400, { error: 'Unknown broker' });
       }
-      await purgeQueue(broker);
-      return json(res, 200, { ok: true, broker });
+      const result = await purgeQueue(broker);
+      return json(res, 200, { ok: true, broker, ...result });
     }
 
     return json(res, 404, { error: 'Not found' });
@@ -238,6 +205,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`API listening on ${PORT}`);
 });
+

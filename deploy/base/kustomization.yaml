@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - redis.yaml
   - mqtt-brokers.yaml
+  - worker.yaml
   - api.yaml
   - frontend.yaml
   - networkpolicies.yaml

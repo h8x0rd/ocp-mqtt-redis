@@ -16,16 +16,18 @@ data:
         body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(135deg,#1b1f3b,#2d6cdf,#31c48d);color:#fff;margin:0;min-height:100vh}
         .wrap{max-width:1100px;margin:0 auto;padding:24px}
         .hero{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
-        .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:24px}
+        .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:24px}
         .card,.panel{background:rgba(255,255,255,.14);backdrop-filter:blur(6px);border-radius:20px;padding:18px;box-shadow:0 12px 28px rgba(0,0,0,.18)}
+        .metric{display:flex;justify-content:space-between;gap:12px;margin:8px 0}
         .count{font-size:3rem;font-weight:800;margin:8px 0}
         button,input,select{border:none;border-radius:12px;padding:10px 12px;font-size:1rem}
         button{cursor:pointer;background:#fff;color:#1547b8;font-weight:700}
         button.danger{background:#ffdad6;color:#8b1e1e}
         .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px}
         .status{margin-top:16px;min-height:1.5em;font-weight:600;white-space:pre-wrap}
-        .footer{opacity:.85;margin-top:18px}
+        .footer{opacity:.9;margin-top:18px}
         code{background:rgba(255,255,255,.12);padding:2px 6px;border-radius:8px}
+        .small{opacity:.9;font-size:.95rem}
       </style>
     </head>
     <body>
@@ -33,11 +35,11 @@ data:
       <div class="hero">
         <div>
           <h1>Interactive OpenShift MQTT Demo</h1>
-          <p>Send bursts of messages, watch queue counts update, and purge any broker queue.</p>
+          <p>Queue messages, watch worker autoscaling, and purge any broker queue.</p>
         </div>
         <div class="panel">
           <strong>Live demo features</strong><br>
-          MQTT publish, Redis-backed counts, KEDA autoscaling, Routes, probes, and NetworkPolicy.
+          MQTT brokers, Redis-backed queues, KEDA worker autoscaling, Routes, probes, and NetworkPolicy.
         </div>
       </div>
     
@@ -58,10 +60,10 @@ data:
           </select>
           <input id="count" type="number" min="1" max="500" value="10" placeholder="Message count">
           <input id="message" type="text" value="Hello from OpenShift" placeholder="Message payload">
-          <button onclick="sendMessages()">Send</button>
+          <button onclick="sendMessages()">Queue messages</button>
         </div>
         <div class="status" id="status"></div>
-        <div class="footer">Autoscaling threshold: <code>10</code> queued messages per broker. In <code>all brokers</code> mode, each broker receives the selected count.</div>
+        <div class="footer">KEDA target: average queue length of <code>10</code> messages per worker. Each broker stays at one replica; queue workers scale instead.</div>
       </div>
     </div>
     <script>
@@ -69,9 +71,7 @@ data:
     async function api(path, options={}){
       const res = await fetch(`${apiBase}${path}`, options);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || `Request failed: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
       return data;
     }
     async function loadData(){
@@ -83,7 +83,9 @@ data:
             <span>${b.service}</span>
           </div>
           <div class="count">${b.queueCount}</div>
-          <div>Replicas: ${b.replicas ?? 'n/a'}</div>
+          <div class="metric"><span>Active queue workers</span><strong>${b.activeWorkers}</strong></div>
+          <div class="metric"><span>Processed messages</span><strong>${b.processedCount}</strong></div>
+          <div class="small">Broker replicas: 1 fixed | Workers: KEDA-managed</div>
           <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
             <button onclick="quickSend('${b.name}',10)">+10</button>
             <button onclick="quickSend('${b.name}',25)">+25</button>
@@ -102,7 +104,7 @@ data:
         setStatus(renderSendStatus(data));
         await loadData();
       } catch (err) {
-        setStatus(`Send failed: ${err.message}`);
+        setStatus(`Queue failed: ${err.message}`);
       }
     }
     async function quickSend(broker, count){
@@ -111,23 +113,23 @@ data:
         setStatus(renderSendStatus(data));
         await loadData();
       } catch (err) {
-        setStatus(`Send failed: ${err.message}`);
+        setStatus(`Queue failed: ${err.message}`);
       }
     }
     async function purge(broker){
       try {
-        await api(`/brokers/${broker}/messages`, {method:'DELETE'});
-        setStatus(`Purged messages for ${broker}`);
+        const data = await api(`/brokers/${broker}/messages`, {method:'DELETE'});
+        setStatus(`Purged ${broker}. Removed keys: ${data.removed}, remaining queue depth: ${data.remaining}`);
         await loadData();
       } catch (err) {
         setStatus(`Purge failed: ${err.message}`);
       }
     }
     function renderSendStatus(data){
-      const parts = Object.entries(data.sentByBroker || {})
+      const parts = Object.entries(data.queuedByBroker || {})
         .filter(([, v]) => v > 0)
         .map(([k, v]) => `${k}: ${v}`);
-      return `Sent ${data.totalMessagesSent} message(s) using ${data.mode} mode.
+      return `Queued ${data.totalMessagesQueued} message(s) using ${data.mode} mode.
     ${parts.join(' | ')}`;
     }
     function setStatus(msg){ document.getElementById('status').textContent = msg; }
@@ -140,41 +142,41 @@ data:
     worker_processes auto;
     error_log /dev/stderr warn;
     pid /tmp/nginx.pid;
-
+    
     events {
       worker_connections 1024;
     }
-
+    
     http {
       include /etc/nginx/mime.types;
       default_type application/octet-stream;
       access_log /dev/stdout;
       sendfile on;
       keepalive_timeout 65;
-
+    
       client_body_temp_path /tmp/client_temp;
       proxy_temp_path /tmp/proxy_temp;
       fastcgi_temp_path /tmp/fastcgi_temp;
       uwsgi_temp_path /tmp/uwsgi_temp;
       scgi_temp_path /tmp/scgi_temp;
-
+    
       server {
         listen 8080;
         server_name _;
         root /usr/share/nginx/html;
         index index.html;
-
+    
         location / {
           try_files $uri /index.html;
         }
-
+    
         location /api/ {
           proxy_pass http://api:8080/;
           proxy_http_version 1.1;
           proxy_set_header Host $host;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         }
-
+    
         location = /healthz {
           access_log off;
           return 200 'ok';
@@ -259,7 +261,7 @@ spec:
             initialDelaySeconds: 10
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /
               port: 8080
             initialDelaySeconds: 5
       volumes:

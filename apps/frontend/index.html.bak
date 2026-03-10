@@ -130,4 +130,3 @@ setInterval(() => loadData().catch(err => setStatus(`Refresh failed: ${err.messa
 </script>
 </body>
 </html>
-

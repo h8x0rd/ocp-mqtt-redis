@@ -179,3 +179,11 @@ This package includes two scale-down improvements:
 2. The `ScaledObject` definitions use a shorter polling interval and more aggressive HPA scale-down behavior.
 
 After purging, allow a short period for KEDA and the generated HPA to observe the lower metric and reduce replicas.
+
+
+## Latest architecture update
+
+- MQTT brokers stay fixed at 1 replica each.
+- KEDA now scales dedicated queue worker deployments (`worker-a`, `worker-b`, `worker-c`) from Redis queue depth.
+- The UI now shows queue depth, active queue workers, and processed message counts per broker.
+- Purge clears the Redis queue that KEDA watches, so workers can scale back down normally.

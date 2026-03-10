@@ -1,0 +1,304 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: worker-script
+  labels:
+    app: queue-worker
+    demo.component: worker
+data:
+  worker.js: |
+    const net = require('net');
+    const { URL } = require('url');
+    const os = require('os');
+
+    const BROKER_NAME = process.env.BROKER_NAME || 'broker-a';
+    const MQTT_HOST = process.env.MQTT_HOST || BROKER_NAME;
+    const MQTT_PORT = Number(process.env.MQTT_PORT || 1883);
+    const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
+    const WORKER_ID = process.env.WORKER_ID || os.hostname();
+    const POLL_MS = Number(process.env.POLL_MS || 1000);
+    const HEARTBEAT_SECONDS = Number(process.env.HEARTBEAT_SECONDS || 15);
+    const QUEUE_KEY = `queue:${BROKER_NAME}`;
+    const HEARTBEAT_KEY = `worker:${BROKER_NAME}:${WORKER_ID}`;
+
+    const redisUrl = new URL(REDIS_URL);
+    const REDIS_HOST = redisUrl.hostname;
+    const REDIS_PORT = Number(redisUrl.port || 6379);
+
+    function encodeRemainingLength(length) {
+      const bytes = [];
+      do {
+        let digit = length % 128;
+        length = Math.floor(length / 128);
+        if (length > 0) digit |= 0x80;
+        bytes.push(digit);
+      } while (length > 0);
+      return Buffer.from(bytes);
+    }
+
+    function mqttString(value) {
+      const buf = Buffer.from(value, 'utf8');
+      const len = Buffer.alloc(2);
+      len.writeUInt16BE(buf.length, 0);
+      return Buffer.concat([len, buf]);
+    }
+
+    function buildConnectPacket(clientId) {
+      const protocol = Buffer.from([0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x02, 0x00, 0x3c]);
+      const payload = mqttString(clientId);
+      const remaining = encodeRemainingLength(protocol.length + payload.length);
+      return Buffer.concat([Buffer.from([0x10]), remaining, protocol, payload]);
+    }
+
+    function buildPublishPacket(topic, payload) {
+      const topicBuf = mqttString(topic);
+      const payloadBuf = Buffer.from(payload, 'utf8');
+      const remaining = encodeRemainingLength(topicBuf.length + payloadBuf.length);
+      return Buffer.concat([Buffer.from([0x30]), remaining, topicBuf, payloadBuf]);
+    }
+
+    function parseRedisSimple(data) {
+      const prefix = data[0];
+      if (prefix === ':') return Number(data.slice(1).trim());
+      if (prefix === '+') return data.slice(1).trim();
+      if (prefix === '-') throw new Error(data.slice(1).trim());
+      if (prefix === '$') {
+        const parts = data.split('\r\n');
+        const length = Number(parts[0].slice(1));
+        if (length === -1) return null;
+        return parts[1] || '';
+      }
+      return data.trim();
+    }
+
+    function redisCommand(args) {
+      return new Promise((resolve, reject) => {
+        const socket = net.createConnection({ host: REDIS_HOST, port: REDIS_PORT });
+        let settled = false;
+        let data = '';
+
+        const done = (err, value) => {
+          if (settled) return;
+          settled = true;
+          try { socket.end(); } catch (_) {}
+          try { socket.destroy(); } catch (_) {}
+          if (err) reject(err); else resolve(value);
+        };
+
+        socket.setTimeout(4000, () => done(new Error('Redis command timed out')));
+        socket.on('error', (err) => done(err));
+        socket.on('data', (chunk) => {
+          data += chunk.toString('utf8');
+          if (!data.endsWith('\r\n')) return;
+          try {
+            done(null, parseRedisSimple(data));
+          } catch (err) {
+            done(err);
+          }
+        });
+        socket.on('connect', () => {
+          const payload = `*${args.length}\r\n` + args.map((arg) => `$${Buffer.byteLength(String(arg))}\r\n${arg}\r\n`).join('');
+          socket.write(payload);
+        });
+      });
+    }
+
+    function mqttPublish(topic, message) {
+      return new Promise((resolve, reject) => {
+        const socket = net.createConnection({ host: MQTT_HOST, port: MQTT_PORT });
+        const clientId = `worker-${BROKER_NAME}-${WORKER_ID}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        let settled = false;
+        let connected = false;
+
+        const done = (err) => {
+          if (settled) return;
+          settled = true;
+          try { socket.end(); } catch (_) {}
+          try { socket.destroy(); } catch (_) {}
+          if (err) reject(err); else resolve();
+        };
+
+        socket.setTimeout(4000, () => done(new Error(`Timeout publishing to ${MQTT_HOST}`)));
+        socket.on('error', done);
+        socket.on('connect', () => {
+          socket.write(buildConnectPacket(clientId));
+        });
+        socket.on('data', (chunk) => {
+          if (!connected) {
+            if (chunk.length < 4 || chunk[0] !== 0x20 || chunk[1] !== 0x02 || chunk[3] !== 0x00) {
+              return done(new Error(`MQTT CONNACK failed for ${MQTT_HOST}`));
+            }
+            connected = true;
+            const publishPayload = JSON.stringify({
+              workerId: WORKER_ID,
+              broker: BROKER_NAME,
+              payload: message,
+              processedAt: new Date().toISOString(),
+            });
+            socket.write(buildPublishPacket(topic, publishPayload), (err) => {
+              if (err) return done(err);
+              setTimeout(() => done(), 25);
+            });
+          }
+        });
+      });
+    }
+
+    async function heartbeat() {
+      await redisCommand(['SETEX', HEARTBEAT_KEY, String(HEARTBEAT_SECONDS), new Date().toISOString()]);
+    }
+
+    async function processOne() {
+      const message = await redisCommand(['LPOP', QUEUE_KEY]);
+      if (!message) return false;
+      await mqttPublish(`demo/${BROKER_NAME}`, message);
+      await redisCommand(['INCR', `processed:${BROKER_NAME}`]);
+      return true;
+    }
+
+    async function loop() {
+      try {
+        await heartbeat();
+        const processed = await processOne();
+        setTimeout(loop, processed ? 100 : POLL_MS);
+      } catch (error) {
+        console.error(`Worker ${WORKER_ID} failed for ${BROKER_NAME}:`, error.message || error);
+        setTimeout(loop, 2000);
+      }
+    }
+
+    heartbeat().catch((err) => console.error('Initial heartbeat failed:', err.message || err));
+    setInterval(() => heartbeat().catch((err) => console.error('Heartbeat failed:', err.message || err)), 5000);
+    loop();
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-a
+  template:
+    metadata:
+      labels:
+        app: worker-a
+        demo.component: queue-worker
+        demo.broker: broker-a
+    spec:
+      containers:
+        - name: worker
+          image: docker.io/node:20-alpine
+          command: ['node', '/opt/demo/worker.js']
+          env:
+            - name: BROKER_NAME
+              value: broker-a
+            - name: MQTT_HOST
+              value: broker-a
+            - name: MQTT_PORT
+              value: '1883'
+            - name: REDIS_URL
+              value: redis://redis:6379
+          volumeMounts:
+            - name: worker-script
+              mountPath: /opt/demo
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: worker-script
+          configMap:
+            name: worker-script
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-b
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-b
+  template:
+    metadata:
+      labels:
+        app: worker-b
+        demo.component: queue-worker
+        demo.broker: broker-b
+    spec:
+      containers:
+        - name: worker
+          image: docker.io/node:20-alpine
+          command: ['node', '/opt/demo/worker.js']
+          env:
+            - name: BROKER_NAME
+              value: broker-b
+            - name: MQTT_HOST
+              value: broker-b
+            - name: MQTT_PORT
+              value: '1883'
+            - name: REDIS_URL
+              value: redis://redis:6379
+          volumeMounts:
+            - name: worker-script
+              mountPath: /opt/demo
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: worker-script
+          configMap:
+            name: worker-script
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-c
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-c
+  template:
+    metadata:
+      labels:
+        app: worker-c
+        demo.component: queue-worker
+        demo.broker: broker-c
+    spec:
+      containers:
+        - name: worker
+          image: docker.io/node:20-alpine
+          command: ['node', '/opt/demo/worker.js']
+          env:
+            - name: BROKER_NAME
+              value: broker-c
+            - name: MQTT_HOST
+              value: broker-c
+            - name: MQTT_PORT
+              value: '1883'
+            - name: REDIS_URL
+              value: redis://redis:6379
+          volumeMounts:
+            - name: worker-script
+              mountPath: /opt/demo
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: worker-script
+          configMap:
+            name: worker-script

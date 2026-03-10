@@ -45,29 +45,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-api-to-redis-and-brokers
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [redis, broker-a, broker-b, broker-c]
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: api
-      ports:
-        - protocol: TCP
-          port: 6379
-        - protocol: TCP
-          port: 1883
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-keda-to-redis
+  name: allow-api-and-workers-to-redis
 spec:
   podSelector:
     matchLabels:
@@ -75,9 +53,40 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [api, worker-a, worker-b, worker-c]
+      ports:
+        - protocol: TCP
+          port: 6379
+    - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: openshift-keda
       ports:
         - protocol: TCP
           port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workers-to-brokers
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [broker-a, broker-b, broker-c]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [worker-a, worker-b, worker-c]
+      ports:
+        - protocol: TCP
+          port: 1883
