@@ -99,8 +99,7 @@ data:
           }
         });
         socket.on('connect', () => {
-          const payload = `*${args.length}
-` + args.map((arg) => `$${Buffer.byteLength(String(arg))}1${arg}
+          const payload = `*${args.length}` + args.map((arg) => `$${Buffer.byteLength(String(arg))}1${arg}
 `).join('');
           socket.write(payload);
         });
