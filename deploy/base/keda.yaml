@@ -5,30 +5,37 @@ metadata:
 spec:
   scaleTargetRef:
     name: worker-a
-  pollingInterval: 10
-  cooldownPeriod: 30
+  pollingInterval: 15
+  cooldownPeriod: 90
   minReplicaCount: 1
   maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
-        scaleDown:
+        scaleUp:
           stabilizationWindowSeconds: 30
           policies:
-            - type: Percent
-              value: 100
-              periodSeconds: 15
             - type: Pods
-              value: 2
-              periodSeconds: 15
+              value: 1
+              periodSeconds: 30
           selectPolicy: Max
+        scaleDown:
+          stabilizationWindowSeconds: 120
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 30
+            - type: Pods
+              value: 1
+              periodSeconds: 30
+          selectPolicy: Min
   triggers:
     - type: redis
       metadata:
         address: redis:6379
         listName: queue:broker-a
-        listLength: "100"
-        activationListLength: "1"
+        listLength: "10"
+        activationListLength: "5"
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -37,30 +44,37 @@ metadata:
 spec:
   scaleTargetRef:
     name: worker-b
-  pollingInterval: 10
-  cooldownPeriod: 30
+  pollingInterval: 15
+  cooldownPeriod: 90
   minReplicaCount: 1
   maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
-        scaleDown:
+        scaleUp:
           stabilizationWindowSeconds: 30
           policies:
-            - type: Percent
-              value: 100
-              periodSeconds: 15
             - type: Pods
-              value: 2
-              periodSeconds: 15
+              value: 1
+              periodSeconds: 30
           selectPolicy: Max
+        scaleDown:
+          stabilizationWindowSeconds: 120
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 30
+            - type: Pods
+              value: 1
+              periodSeconds: 30
+          selectPolicy: Min
   triggers:
     - type: redis
       metadata:
         address: redis:6379
         listName: queue:broker-b
-        listLength: "100"
-        activationListLength: "1"
+        listLength: "10"
+        activationListLength: "5"
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -69,27 +83,34 @@ metadata:
 spec:
   scaleTargetRef:
     name: worker-c
-  pollingInterval: 10
-  cooldownPeriod: 30
+  pollingInterval: 15
+  cooldownPeriod: 90
   minReplicaCount: 1
   maxReplicaCount: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
-        scaleDown:
+        scaleUp:
           stabilizationWindowSeconds: 30
           policies:
-            - type: Percent
-              value: 100
-              periodSeconds: 15
             - type: Pods
-              value: 2
-              periodSeconds: 15
+              value: 1
+              periodSeconds: 30
           selectPolicy: Max
+        scaleDown:
+          stabilizationWindowSeconds: 120
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 30
+            - type: Pods
+              value: 1
+              periodSeconds: 30
+          selectPolicy: Min
   triggers:
     - type: redis
       metadata:
         address: redis:6379
         listName: queue:broker-c
-        listLength: "100"
-        activationListLength: "1"
+        listLength: "10"
+        activationListLength: "5"

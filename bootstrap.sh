@@ -182,9 +182,9 @@ setup_argocd_namespace_access "$TEST_NS"
 setup_argocd_namespace_access "$PROD_NS"
 
 replace_repo_url deploy
-oc whoami
 patch_namespace_references deploy
 apply_path "" deploy/applications
+
 cat <<EOF2
 
 Bootstrap complete.

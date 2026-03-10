@@ -187,3 +187,7 @@ After purging, allow a short period for KEDA and the generated HPA to observe th
 - KEDA now scales dedicated queue worker deployments (`worker-a`, `worker-b`, `worker-c`) from Redis queue depth.
 - The UI now shows queue depth, active queue workers, and processed message counts per broker.
 - Purge clears the Redis queue that KEDA watches, so workers can scale back down normally.
+
+Worker scaling notes:
+- workers intentionally process messages with a short delay so scale-out is visible in the UI
+- KEDA/HPA scale-down is deliberately slower to reduce pod churn during demos

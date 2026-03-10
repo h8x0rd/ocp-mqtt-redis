@@ -17,6 +17,8 @@ data:
     const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
     const WORKER_ID = process.env.WORKER_ID || os.hostname();
     const POLL_MS = Number(process.env.POLL_MS || 1000);
+    const PROCESS_DELAY_MS = Number(process.env.PROCESS_DELAY_MS || 3000);
+    const STARTUP_DELAY_MS = Number(process.env.STARTUP_DELAY_MS || 5000);
     const HEARTBEAT_SECONDS = Number(process.env.HEARTBEAT_SECONDS || 15);
     const QUEUE_KEY = `queue:${BROKER_NAME}`;
     const HEARTBEAT_KEY = `worker:${BROKER_NAME}:${WORKER_ID}`;
@@ -153,6 +155,9 @@ data:
       if (!message) return false;
       await mqttPublish(`demo/${BROKER_NAME}`, message);
       await redisCommand(['INCR', `processed:${BROKER_NAME}`]);
+      if (PROCESS_DELAY_MS > 0) {
+        await new Promise((resolve) => setTimeout(resolve, PROCESS_DELAY_MS));
+      }
       return true;
     }
 
@@ -169,7 +174,7 @@ data:
 
     heartbeat().catch((err) => console.error('Initial heartbeat failed:', err.message || err));
     setInterval(() => heartbeat().catch((err) => console.error('Heartbeat failed:', err.message || err)), 5000);
-    loop();
+    setTimeout(loop, STARTUP_DELAY_MS);
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -200,6 +205,10 @@ spec:
               value: '1883'
             - name: REDIS_URL
               value: redis://redis:6379
+            - name: PROCESS_DELAY_MS
+              value: '3000'
+            - name: STARTUP_DELAY_MS
+              value: '5000'
           volumeMounts:
             - name: worker-script
               mountPath: /opt/demo
@@ -244,6 +253,10 @@ spec:
               value: '1883'
             - name: REDIS_URL
               value: redis://redis:6379
+            - name: PROCESS_DELAY_MS
+              value: '3000'
+            - name: STARTUP_DELAY_MS
+              value: '5000'
           volumeMounts:
             - name: worker-script
               mountPath: /opt/demo
@@ -288,6 +301,10 @@ spec:
               value: '1883'
             - name: REDIS_URL
               value: redis://redis:6379
+            - name: PROCESS_DELAY_MS
+              value: '3000'
+            - name: STARTUP_DELAY_MS
+              value: '5000'
           volumeMounts:
             - name: worker-script
               mountPath: /opt/demo
