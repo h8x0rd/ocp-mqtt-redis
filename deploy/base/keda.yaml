@@ -3,11 +3,11 @@ kind: ScaledJob
 metadata:
   name: worker-a-jobs
 spec:
-  pollingInterval: 10
+  pollingInterval: 5
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 1
   minReplicaCount: 0
-  maxReplicaCount: 3
+  maxReplicaCount: 4
   rollout:
     strategy: default
   jobTargetRef:
@@ -38,11 +38,11 @@ spec:
                   fieldRef:
                     fieldPath: metadata.namespace
               - name: PROCESS_DELAY_MS
-                value: '8000'
-              - name: STARTUP_DELAY_MS
                 value: '2000'
+              - name: STARTUP_DELAY_MS
+                value: '500'
               - name: JOB_BATCH_SIZE
-                value: '5'
+                value: '10'
               - name: HEARTBEAT_SECONDS
                 value: '30'
             volumeMounts:
@@ -64,19 +64,19 @@ spec:
       metadata:
         address: redis.default.svc.cluster.local:6379
         listName: queue:broker-a
-        listLength: '5'
-        activationListLength: '20'
+        listLength: '3'
+        activationListLength: '1'
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
   name: worker-b-jobs
 spec:
-  pollingInterval: 10
+  pollingInterval: 5
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 1
   minReplicaCount: 0
-  maxReplicaCount: 3
+  maxReplicaCount: 4
   rollout:
     strategy: default
   jobTargetRef:
@@ -107,11 +107,11 @@ spec:
                   fieldRef:
                     fieldPath: metadata.namespace
               - name: PROCESS_DELAY_MS
-                value: '8000'
-              - name: STARTUP_DELAY_MS
                 value: '2000'
+              - name: STARTUP_DELAY_MS
+                value: '500'
               - name: JOB_BATCH_SIZE
-                value: '5'
+                value: '10'
               - name: HEARTBEAT_SECONDS
                 value: '30'
             volumeMounts:
@@ -133,19 +133,19 @@ spec:
       metadata:
         address: redis.default.svc.cluster.local:6379
         listName: queue:broker-b
-        listLength: '5'
-        activationListLength: '20'
+        listLength: '3'
+        activationListLength: '1'
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
   name: worker-c-jobs
 spec:
-  pollingInterval: 10
+  pollingInterval: 5
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 1
   minReplicaCount: 0
-  maxReplicaCount: 3
+  maxReplicaCount: 4
   rollout:
     strategy: default
   jobTargetRef:
@@ -176,11 +176,11 @@ spec:
                   fieldRef:
                     fieldPath: metadata.namespace
               - name: PROCESS_DELAY_MS
-                value: '8000'
-              - name: STARTUP_DELAY_MS
                 value: '2000'
+              - name: STARTUP_DELAY_MS
+                value: '500'
               - name: JOB_BATCH_SIZE
-                value: '5'
+                value: '10'
               - name: HEARTBEAT_SECONDS
                 value: '30'
             volumeMounts:
@@ -202,5 +202,5 @@ spec:
       metadata:
         address: redis.default.svc.cluster.local:6379
         listName: queue:broker-c
-        listLength: '5'
-        activationListLength: '20'
+        listLength: '3'
+        activationListLength: '1'
